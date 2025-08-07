@@ -1,6 +1,6 @@
 # .github/workflows/rebase-express-payments.yml
 
-name: 'Auto Rebase adyenExpressPaymentsDreamForceTestAlertBranch'
+name: 'Z-Auto Rebase adyenExpressPaymentsDreamForceTestAlertBranch'
 
 # This action will trigger on every push to the develop branch.
 on:
@@ -81,3 +81,4 @@ jobs:
         env:
           # You must store your Slack Bot Token as a secret in your repository settings.
           SLACK_BOT_TOKEN: '${{ secrets.AGENT_CHECKOUT_SLACK_BOT_TOKEN }}'
+          # Forcing a re-index
