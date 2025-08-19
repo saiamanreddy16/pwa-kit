@@ -15,8 +15,28 @@ import useCommerceApi from '../useCommerceApi'
 import { helpers } from "commerce-sdk-isomorphic"
 import { useCustomMutation } from '../useMutation'
 
+
 const CLIENT_KEY = CLIENT_KEYS.SHOPPER_CUSTOMERS
 type Client = NonNullable<ApiClients[typeof CLIENT_KEY]>
+
+/**
+ * Utility function to get the dwsid cookie value
+ * @returns The dwsid cookie value or null if not found
+ */
+const getRefreshTokenCookie = (): string | null => {
+    if (typeof document === 'undefined') {
+        return null
+    }
+    
+    const cookies = document.cookie.split(';')
+    for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=')
+        if (name === 'cc-nx_RefArch') {
+            return value
+        }
+    }
+    return null
+}
 
 // TODO: Re-implement (and update description from RAML spec) when the endpoint exits closed beta.
 // /**
@@ -258,6 +278,9 @@ export const useSomOrder = (
         onError?: (error: any) => void
     }
 ) => {
+    // Get the dwsid cookie value
+    const refreshToken = getRefreshTokenCookie()
+    
     return useCustomQuery({
         options: {
             method: 'GET',
@@ -267,7 +290,12 @@ export const useSomOrder = (
                 apiVersion: 'v1',
                 organizationId: 'f_ecom_zzrf_017'
             },
-            parameters: apiOptions.parameters
+            parameters: apiOptions.parameters,
+            // Add the refreshToken cookie as an additional header if available
+            // This will be merged with existing headers by the generateCustomEndpointOptions function
+            headers: refreshToken ? {
+                'cc-nx_RefArch': refreshToken
+            } : {}
         }
     }, queryOptions);
 }
