@@ -285,7 +285,7 @@ export const useSomOrder = (
         options: {
             method: 'GET',
             customApiPathParameters: {
-                endpointPath: 'order',
+                endpointPath: 'orderFromPluginController',
                 apiName: 'orders',
                 apiVersion: 'v1',
                 organizationId: 'f_ecom_zzrf_017'
