@@ -118,6 +118,7 @@ function Express() {
                         basketData={basket}
                         authToken={authToken}
                         manager={manager}
+                        overrideData={{authToken, basket}}
                     />
                     <GooglePayExpress manager={manager} overrideData={{authToken, basket}} />
                 </AdyenExpressCheckoutProvider>
@@ -130,6 +131,7 @@ function Express() {
                     basketData={basket}
                     authToken={authToken}
                     manager={manager}
+                    overrideData={{authToken, basket}}
                 />
             )}
         </div>

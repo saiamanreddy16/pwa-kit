@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  * For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  */
-import React, {useEffect, useRef} from 'react'
+import React, {useEffect, useRef, useCallback} from 'react'
 import AdyenCheckout from '@adyen/adyen-web'
 import '@adyen/adyen-web/dist/adyen.css'
 import PropTypes from 'prop-types'
@@ -15,7 +15,6 @@ import {
 } from '@salesforce/retail-react-app/app/components/express/utils/parsers'
 import {AdyenShippingMethodsService} from '@salesforce/retail-react-app/app/components/express/utils/shipping-methods'
 import {AdyenShippingAddressService} from '@salesforce/retail-react-app/app/components/express/utils/shipping-address'
-import {forceOrderCalculation} from '@salesforce/retail-react-app/app/components/express/utils/pdp/basket-calculation'
 import {AdyenPaymentsService} from '@salesforce/retail-react-app/app/components/express/utils/payments'
 import {
     PAYMENT_METHODS,
@@ -308,12 +307,37 @@ export const getGoogleButtonConfig = (authToken, site, basket, googlePayConfig) 
 }
 
 export const GooglePayExpress = ({manager, overrideData = null}) => {
-    const {adyenEnvironment, adyenPaymentMethods, basket, locale, site, authToken} =
+    const {adyenEnvironment, adyenPaymentMethods, locale, site, authToken, basket} =
         useAdyenExpressCheckout()
 
-    const finalAuthToken = overrideData?.authToken
-    const finalBasket = overrideData?.basket
+    const finalAuthToken = overrideData?.authToken || authToken
+    const finalBasket = overrideData?.basket || basket
     const paymentContainer = useRef(null)
+
+    // Preload critical data in parallel for better performance
+    const preloadCriticalData = useCallback(async () => {
+        // For tests or when data is not available, return what we have
+        if (!adyenEnvironment || !adyenPaymentMethods) {
+            return null
+        }
+
+        return {
+            environment: adyenEnvironment,
+            paymentMethods: adyenPaymentMethods,
+            basketData: finalBasket
+        }
+    }, [adyenEnvironment, adyenPaymentMethods, finalBasket])
+
+    // Preload critical data early for better performance
+    useEffect(() => {
+        // Start preloading data as soon as we have the minimum required dependencies
+        if (finalAuthToken && site) {
+            // Trigger preload in background
+            preloadCriticalData().catch(() => {
+                // Silently fail preload, will retry in createCheckout
+            })
+        }
+    }, [finalAuthToken, site, preloadCriticalData])
 
     useEffect(() => {
         let isCanceled = false
@@ -327,16 +351,41 @@ export const GooglePayExpress = ({manager, overrideData = null}) => {
                 manager.setPaymentMethodUnavailable(PAYMENT_METHOD)
             }
 
+            // Use preloaded data for better performance
+            const requiredData = await preloadCriticalData()
+
+            let environment, paymentMethods, basketData
+
+            // If preloading failed, fall back to direct data access
+            if (!requiredData) {
+                // Check if we have the minimum required data directly
+                if (!adyenEnvironment || !adyenPaymentMethods) {
+                    // Data not ready yet, schedule retry on next tick
+                    setTimeout(() => createCheckout(), 0)
+                    return
+                }
+
+                // Use direct data access - allow missing basket data to be handled gracefully
+                environment = adyenEnvironment
+                paymentMethods = adyenPaymentMethods
+                basketData = finalBasket
+            } else {
+                // Use preloaded data
+                environment = requiredData.environment
+                paymentMethods = requiredData.paymentMethods
+                basketData = requiredData.basketData
+            }
+
             try {
                 let checkout
                 try {
                     checkout = await AdyenCheckout({
-                        environment: adyenEnvironment?.ADYEN_ENVIRONMENT,
-                        clientKey: adyenEnvironment?.ADYEN_CLIENT_KEY,
+                        environment: environment.ADYEN_ENVIRONMENT,
+                        clientKey: environment.ADYEN_CLIENT_KEY,
                         locale: locale.id,
                         analytics: {
                             analyticsData: {
-                                applicationInfo: adyenPaymentMethods?.applicationInfo
+                                applicationInfo: paymentMethods?.applicationInfo
                             }
                         }
                     })
@@ -345,11 +394,11 @@ export const GooglePayExpress = ({manager, overrideData = null}) => {
                     return
                 }
 
-                const googlePaymentMethodConfig = getGooglePaymentMethodConfig(adyenPaymentMethods)
+                const googlePaymentMethodConfig = getGooglePaymentMethodConfig(paymentMethods)
                 const googleButtonConfig = getGoogleButtonConfig(
                     finalAuthToken,
                     site,
-                    finalBasket,
+                    basketData,
                     googlePaymentMethodConfig
                 )
 

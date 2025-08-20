@@ -194,7 +194,16 @@ describe('ApplePayExpress', () => {
     })
 
     it('initializes AdyenCheckout with correct configuration', async () => {
-        render(<ApplePayExpress {...mockProps} />)
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
 
         await waitFor(() => {
             expect(AdyenCheckout).toHaveBeenCalledWith({
@@ -214,7 +223,16 @@ describe('ApplePayExpress', () => {
         // Mock AdyenCheckout to throw an error
         AdyenCheckout.mockRejectedValue(new Error('Apple Pay not available'))
 
-        render(<ApplePayExpress {...mockProps} />)
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
 
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
@@ -222,10 +240,106 @@ describe('ApplePayExpress', () => {
     })
 
     it('mounts Apple Pay button when available', async () => {
-        render(<ApplePayExpress {...mockProps} />)
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
 
         await waitFor(() => {
             expect(AdyenCheckout).toHaveBeenCalled()
+        })
+    })
+
+    it('uses overrideData when provided', async () => {
+        const overrideData = {
+            authToken: 'override-token',
+            basket: {
+                basketId: 'override-basket',
+                orderTotal: 200,
+                currency: 'EUR'
+            }
+        }
+
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
+
+        await waitFor(() => {
+            expect(useStandalonePaymentMethods).toHaveBeenCalledWith(
+                'override-token', // Should use override token
+                {id: 'test-site'},
+                {id: 'en-US'},
+                false
+            )
+        })
+    })
+
+    it('prioritizes overrideData over provider data', async () => {
+        const overrideData = {
+            authToken: 'override-token',
+            basket: {
+                basketId: 'override-basket',
+                orderTotal: 300,
+                currency: 'GBP'
+            }
+        }
+
+        // Mock useAdyenExpressCheckout to return different auth token
+        useAdyenExpressCheckout.mockReturnValue({
+            adyenEnvironment: mockAdyenEnvironment,
+            adyenPaymentMethods: mockAdyenPaymentMethods,
+            basket: mockProps.basketData, // Different basket
+            authToken: 'provider-token', // Different token
+            locale: {id: 'en-US'},
+            site: 'test-site'
+        })
+
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
+
+        await waitFor(() => {
+            expect(useStandalonePaymentMethods).toHaveBeenCalledWith(
+                'override-token', // Should use override token, not provider token
+                {id: 'test-site'},
+                {id: 'en-US'},
+                false
+            )
+        })
+    })
+
+    it('falls back to provider data when overrideData is not provided', async () => {
+        // Mock useAdyenExpressCheckout to return auth token
+        useAdyenExpressCheckout.mockReturnValue({
+            adyenEnvironment: mockAdyenEnvironment,
+            adyenPaymentMethods: mockAdyenPaymentMethods,
+            basket: mockProps.basketData,
+            authToken: 'provider-token',
+            locale: {id: 'en-US'},
+            site: 'test-site'
+        })
+
+        render(<ApplePayExpress {...mockProps} />)
+
+        await waitFor(() => {
+            expect(useStandalonePaymentMethods).toHaveBeenCalledWith(
+                'provider-token', // Should use provider token
+                {id: 'test-site'},
+                {id: 'en-US'},
+                false
+            )
         })
     })
 })
@@ -297,7 +411,7 @@ describe('Utility functions', () => {
 })
 
 describe('getAppleButtonConfig', () => {
-    const mockAuthToken = 'token'
+    const mockFinalAuthToken = 'token'
     const mockSite = 'site'
     const mockBasket = {
         basketId: 'basket',
@@ -323,7 +437,7 @@ describe('getAppleButtonConfig', () => {
 
     it('returns correct button config', () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -340,7 +454,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onAuthorized resolves on successful payment', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -372,7 +486,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onAuthorized rejects on failed payment', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -401,7 +515,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onAuthorized rejects on error', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -430,7 +544,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onError sends cancel message for CANCEL error', () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -448,7 +562,7 @@ describe('getAppleButtonConfig', () => {
     })
     it('onError sends failure message for other errors', () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -486,7 +600,7 @@ describe('getAppleButtonConfig', () => {
         })
 
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -513,7 +627,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onShippingContactSelected rejects on address update error', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -554,7 +668,7 @@ describe('getAppleButtonConfig', () => {
         }))
 
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -580,7 +694,7 @@ describe('getAppleButtonConfig', () => {
 
     it('onShippingMethodSelected rejects on method update error', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockBasket,
             mockShippingMethods,
@@ -667,7 +781,17 @@ describe('ApplePayExpress error and edge cases', () => {
         AdyenCheckout.mockImplementation(() => {
             throw new Error('fail')
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
         })
@@ -678,7 +802,17 @@ describe('ApplePayExpress error and edge cases', () => {
                 throw new Error('fail create')
             })
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
         })
@@ -692,7 +826,17 @@ describe('ApplePayExpress error and edge cases', () => {
                 mount: jest.fn()
             })
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
         })
@@ -704,7 +848,17 @@ describe('ApplePayExpress error and edge cases', () => {
                 mount: jest.fn()
             })
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
         })
@@ -718,7 +872,17 @@ describe('ApplePayExpress error and edge cases', () => {
                 })
             })
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(mockProps.manager.setPaymentMethodUnavailable).toHaveBeenCalledWith('applepay')
         })
@@ -759,7 +923,17 @@ describe('ApplePayExpress error and edge cases', () => {
                 mount: jest.fn()
             })
         })
-        render(<ApplePayExpress {...mockProps} />)
+
+        // Provide override data to ensure required basket data is available
+        const propsWithOverride = {
+            ...mockProps,
+            overrideData: {
+                authToken: 'test-token',
+                basket: mockBasket
+            }
+        }
+
+        render(<ApplePayExpress {...propsWithOverride} />)
         await waitFor(() => {
             expect(AdyenCheckout).toHaveBeenCalled()
         })
@@ -1018,7 +1192,7 @@ describe('ApplePayExpress PDP Mode', () => {
 })
 
 describe('ApplePayExpress PDP Button Configuration', () => {
-    const mockAuthToken = 'pdp-token'
+    const mockFinalAuthToken = 'pdp-token'
     const mockSite = {id: 'pdp-site'}
     const mockApplePayConfig = {merchantName: 'PDP Test Merchant'}
     const mockNavigate = jest.fn()
@@ -1041,7 +1215,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
     it('creates temporary basket on click in PDP mode', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null, // no existing basket
             [],
@@ -1061,7 +1235,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
         expect(createTemporaryBasket).toHaveBeenCalledWith(
             'TEST-SKU-PDP',
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             1
         )
@@ -1077,7 +1251,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
     it('uses existing temporary basket if available', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1103,7 +1277,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
         createTemporaryBasket.mockRejectedValue(new Error('Basket creation failed'))
 
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1127,7 +1301,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
     it('forces order calculation before payment in PDP mode', async () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1180,7 +1354,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
         expect(forceOrderCalculation).toHaveBeenCalledWith(
             mockTempBasket.basketId,
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite
         )
         expect(mockSubmitPayment).toHaveBeenCalled()
@@ -1191,7 +1365,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
         forceOrderCalculation.mockRejectedValue(new Error('Calculation failed'))
 
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1227,7 +1401,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
         })
 
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1258,7 +1432,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
     it('cleans up temporary basket on payment cancellation', () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1280,7 +1454,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
         expect(cleanupTemporaryBasket).toHaveBeenCalledWith(
             true,
             mockTempBasket,
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockSetTempBasket
         )
@@ -1296,7 +1470,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
 
     it('cleans up temporary basket on payment failure', () => {
         const config = getAppleButtonConfig(
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             null,
             [],
@@ -1318,7 +1492,7 @@ describe('ApplePayExpress PDP Button Configuration', () => {
         expect(cleanupTemporaryBasket).toHaveBeenCalledWith(
             true,
             mockTempBasket,
-            mockAuthToken,
+            mockFinalAuthToken,
             mockSite,
             mockSetTempBasket
         )

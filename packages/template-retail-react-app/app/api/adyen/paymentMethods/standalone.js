@@ -11,17 +11,6 @@
  * before creating a basket
  */
 
-// Helper function to get the Adyen PWA library version dynamically
-function getAdyenPwaVersion() {
-    try {
-        // Try to read the version from the installed package
-        const packageJson = require('@adyen/adyen-salesforce-pwa/package.json')
-        return packageJson.version
-    } catch (error) {
-        console.error('Unable to determine Adyen PWA version', error)
-    }
-}
-
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
         return res.status(405).json({error: 'Method not allowed'})
@@ -88,7 +77,7 @@ export default async function handler(req, res) {
             applicationInfo: {
                 adyenLibrary: {
                     name: 'adyen-salesforce-pwa',
-                    version: getAdyenPwaVersion()
+                    version: '2.0.1'
                 }
             }
         })

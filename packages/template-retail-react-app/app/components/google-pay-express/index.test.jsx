@@ -517,7 +517,7 @@ describe('getGoogleButtonConfig', () => {
         })
         expect(mockUpdateShippingAddress).toHaveBeenCalled()
         expect(initializeResult).toHaveProperty('newTransactionInfo')
-        
+
         // Verify that the basket was updated with shipping option parameters
         expect(initializeResult).toHaveProperty('newShippingOptionParameters')
         expect(initializeResult.newShippingOptionParameters).toEqual({
